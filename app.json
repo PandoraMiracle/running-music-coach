@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "running-music-coach",
+    "name": "Running Music Coach",
     "slug": "running-music-coach",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "runningmusiccoach",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon"
     },
@@ -28,7 +28,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0B1324",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

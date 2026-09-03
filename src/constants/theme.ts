@@ -7,20 +7,34 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+export const Palette = {
+  bg: '#0B1324',
+  bgElevated: '#121C31',
+  card: '#162033',
+  cardBorder: '#243049',
+  text: '#F4F7FB',
+  muted: '#8B97AB',
+  accent: '#2EE59D',
+  accentDim: '#163F32',
+  blue: '#5B8CFF',
+  warning: '#FFB020',
+  danger: '#FF5C7A',
+} as const;
+
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#0B1324',
+    background: '#F4F7FB',
+    backgroundElement: '#E7EDF6',
+    backgroundSelected: '#D7E1EE',
+    textSecondary: '#5B6B82',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: Palette.text,
+    background: Palette.bg,
+    backgroundElement: Palette.card,
+    backgroundSelected: Palette.bgElevated,
+    textSecondary: Palette.muted,
   },
 } as const;
 
