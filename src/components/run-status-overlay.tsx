@@ -9,13 +9,17 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-export type RunOverlayKind = "safety" | "pocket_guard";
+export type RunOverlayKind = "safety" | "navigation" | "pocket_guard";
 
 const OverlayTokens = {
   safetyTint: "rgba(198, 56, 56, 1)",
   safetyChipBg: "#FCEAEA",
   safetyChipBorder: "#E8B4B4",
   safetyInk: "#A12828",
+  navigationTint: "rgba(28, 96, 168, 1)",
+  navigationChipBg: "#E8F1FC",
+  navigationChipBorder: "#B4CCE8",
+  navigationInk: "#1C4A78",
   pocketTint: "rgba(214, 122, 36, 1)",
   pocketChipBg: "#FFF3E6",
   pocketChipBorder: "#E8C49A",
@@ -48,19 +52,35 @@ export function RunStatusOverlay({ kind }: RunStatusOverlayProps) {
     opacity: pulse.value,
   }));
 
-  const isSafety = kind === "safety";
-  const tintColor = isSafety
-    ? OverlayTokens.safetyTint
-    : OverlayTokens.pocketTint;
-  const chipBg = isSafety
-    ? OverlayTokens.safetyChipBg
-    : OverlayTokens.pocketChipBg;
-  const chipBorder = isSafety
-    ? OverlayTokens.safetyChipBorder
-    : OverlayTokens.pocketChipBorder;
-  const chipInk = isSafety ? OverlayTokens.safetyInk : OverlayTokens.pocketInk;
-  const label = isSafety ? "Safety alert" : "Pocket Guard";
-  const iconName = isSafety ? "warning" : "lock-closed";
+  const tone =
+    kind === "safety"
+      ? {
+          tint: OverlayTokens.safetyTint,
+          chipBg: OverlayTokens.safetyChipBg,
+          chipBorder: OverlayTokens.safetyChipBorder,
+          chipInk: OverlayTokens.safetyInk,
+          label: "Safety alert",
+          iconName: "warning" as const,
+        }
+      : kind === "navigation"
+        ? {
+            tint: OverlayTokens.navigationTint,
+            chipBg: OverlayTokens.navigationChipBg,
+            chipBorder: OverlayTokens.navigationChipBorder,
+            chipInk: OverlayTokens.navigationInk,
+            label: "Navigation cue",
+            iconName: "navigate" as const,
+          }
+        : {
+            tint: OverlayTokens.pocketTint,
+            chipBg: OverlayTokens.pocketChipBg,
+            chipBorder: OverlayTokens.pocketChipBorder,
+            chipInk: OverlayTokens.pocketInk,
+            label: "Pocket Guard",
+            iconName: "lock-closed" as const,
+          };
+  const { tint: tintColor, chipBg, chipBorder, chipInk, label, iconName } =
+    tone;
 
   return (
     <View pointerEvents="none" style={styles.layer}>

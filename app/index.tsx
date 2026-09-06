@@ -6,11 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/primary-button";
 import { formatPace } from "@/constants/format";
 import { ROUTES } from "@/constants/routes";
-import {
-  DEFAULT_AUDIO_MODE,
-  DEFAULT_PLAN,
-  DEFAULT_PLAYLIST,
-} from "@/store/defaults";
+import { RUN_TYPES } from "@/data/runTypes";
+import { useSession } from "@/store/session-store";
 
 /** Approved light pre-run surface (warm off-white). */
 const HomeColors = {
@@ -51,7 +48,10 @@ function SurfaceRow({ onPress, children, compact }: SurfaceRowProps) {
 }
 
 export default function HomeScreen() {
-  const audioMeta = DEFAULT_AUDIO_MODE.paceSyncEnabled
+  const { state, playlist, audioMode } = useSession();
+  const runType =
+    RUN_TYPES.find((item) => item.id === state.runTypeId) ?? RUN_TYPES[0];
+  const audioMeta = audioMode.paceSyncEnabled
     ? "Music adapts to pace · Pace Sync on"
     : "Prioritize music · Pace Sync off";
 
@@ -72,12 +72,12 @@ export default function HomeScreen() {
               <Text style={styles.cardEyebrow}>Target Pace</Text>
               <View style={styles.paceRow}>
                 <Text style={styles.paceValue}>
-                  {paceValue(DEFAULT_PLAN.targetPaceSecPerKm)}
+                  {paceValue(state.targetPaceSecPerKm)}
                 </Text>
                 <Text style={styles.paceUnit}> /km</Text>
               </View>
               <Text style={styles.planLine}>
-                {DEFAULT_PLAN.name} · {DEFAULT_PLAN.distanceKm.toFixed(1)} km
+                {runType.name} · {state.distanceKm.toFixed(1)} km
               </Text>
             </SurfaceRow>
           </View>
@@ -93,9 +93,9 @@ export default function HomeScreen() {
               <View style={styles.playlistRow}>
                 <View style={styles.artwork} />
                 <View style={styles.playlistMeta}>
-                  <Text style={styles.rowTitle}>{DEFAULT_PLAYLIST.title}</Text>
+                  <Text style={styles.rowTitle}>{playlist.title}</Text>
                   <Text style={styles.rowMeta}>
-                    {`${DEFAULT_PLAYLIST.tracks.length} tracks · ~${DEFAULT_PLAYLIST.approxBpm} BPM`}
+                    {`${playlist.tracks.length} tracks · ~${playlist.approxBpm} BPM`}
                   </Text>
                 </View>
               </View>
@@ -110,7 +110,7 @@ export default function HomeScreen() {
               compact
               onPress={() => router.push(ROUTES.audioMode)}
             >
-              <Text style={styles.rowTitle}>{DEFAULT_AUDIO_MODE.name}</Text>
+              <Text style={styles.rowTitle}>{audioMode.name}</Text>
               <Text style={styles.rowMeta}>{audioMeta}</Text>
             </SurfaceRow>
           </View>

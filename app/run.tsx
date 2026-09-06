@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { EVENT_LABELS, ResearchPanel } from "@/components/research-panel";
 import {
   RunStatusOverlay,
   type RunOverlayKind,
@@ -18,6 +19,10 @@ import {
 } from "@/hooks/use-run-gestures";
 import { useSession } from "@/store/session-store";
 import type { MusicStatus } from "@/types";
+
+const IMMEDIATE_ALERT_MS = 3000;
+const SMART_ALERT_MS = 3500;
+const PACE_SYNC_NOTICE_MS = 2600;
 
 const RunColors = {
   bg: "#F5F7F4",
@@ -43,12 +48,6 @@ const MOCK_DISTANCE_KM = 1.6;
 const MOCK_ELAPSED_SEC = 9 * 60 + 42;
 const PACE_FEEDBACK_MS = 1600;
 
-/** Same provisional deferred list used by S08 until Phase E queue exists. */
-const MOCK_DEFERRED_UPDATES = [
-  "1.5 km milestone",
-  "Cadence consistency tip",
-] as const;
-
 /** Shared pace size for NORMAL + PAUSED (390px-safe). */
 const PACE_VALUE_SIZE = 76;
 const FINISH_SLOT_HEIGHT = 48;
@@ -59,10 +58,10 @@ const PACE_FEEDBACK_SLOT_HEIGHT = 26;
  * Overlays are never driven by the passive bell indicator.
  */
 function resolveActiveOverlay(
-  safetyAlertActive: boolean,
+  immediateAlertKind: "safety" | "navigation" | null,
   pocketGuardActive: boolean,
 ): RunOverlayKind | null {
-  if (safetyAlertActive) return "safety";
+  if (immediateAlertKind) return immediateAlertKind;
   if (pocketGuardActive) return "pocket_guard";
   return null;
 }
@@ -195,13 +194,30 @@ function MetricsArea({
 }
 
 export default function RunScreen() {
-  const { state, playlist, audioMode } = useSession();
+  const {
+    state,
+    playlist,
+    audioMode,
+    triggerEvent,
+    clearImmediateAlert,
+    clearSmartAlert,
+    setPocketGuardActive,
+    setPaceSyncState,
+    restoreToMusicFirst,
+  } = useSession();
 
   const [musicStatus, setMusicStatus] = useState<MusicStatus>("playing");
   const [trackIndex, setTrackIndex] = useState(0);
   const [runPaused, setRunPaused] = useState(false);
   const [paceFeedback, setPaceFeedback] = useState(false);
+  const [researchPanelOpen, setResearchPanelOpen] = useState(false);
+  const [paceSyncNotice, setPaceSyncNotice] = useState(false);
   const paceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paceSyncNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const prevPaceSyncStateRef = useRef(state.paceSyncState);
+  const prevImmediateAlertKindRef = useRef(state.immediateAlertKind);
 
   const tracks = playlist.tracks;
   const track = tracks[Math.min(trackIndex, tracks.length - 1)] ?? tracks[0];
@@ -209,17 +225,58 @@ export default function RunScreen() {
   const targetPace = paceParts(state.targetPaceSecPerKm);
   const artworkColor = ARTWORK_COLORS[playlist.id] ?? RunColors.accent;
   const musicLabel = musicStatus === "playing" ? "Playing" : "Paused";
-  const deferredCount = MOCK_DEFERRED_UPDATES.length;
+  const deferredCount = state.deferredUpdates.length;
   const activeOverlay = resolveActiveOverlay(
-    state.safetyAlertActive,
+    state.immediateAlertKind,
     state.pocketGuardActive,
   );
 
   useEffect(() => {
     return () => {
       if (paceTimerRef.current) clearTimeout(paceTimerRef.current);
+      if (paceSyncNoticeTimerRef.current) {
+        clearTimeout(paceSyncNoticeTimerRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!state.immediateAlertKind) return;
+    const timer = setTimeout(clearImmediateAlert, IMMEDIATE_ALERT_MS);
+    return () => clearTimeout(timer);
+  }, [state.immediateAlertKind, clearImmediateAlert]);
+
+  useEffect(() => {
+    const prev = prevImmediateAlertKindRef.current;
+    prevImmediateAlertKindRef.current = state.immediateAlertKind;
+    if (state.immediateAlertKind && state.immediateAlertKind !== prev) {
+      pulseHaptic("alert");
+    }
+  }, [state.immediateAlertKind]);
+
+  useEffect(() => {
+    if (!state.smartAlertKind) return;
+    const timer = setTimeout(clearSmartAlert, SMART_ALERT_MS);
+    return () => clearTimeout(timer);
+  }, [state.smartAlertKind, clearSmartAlert]);
+
+  useEffect(() => {
+    const prev = prevPaceSyncStateRef.current;
+    prevPaceSyncStateRef.current = state.paceSyncState;
+    if (
+      audioMode.paceSyncEnabled &&
+      state.paceSyncState !== "on_target" &&
+      state.paceSyncState !== prev
+    ) {
+      setPaceSyncNotice(true);
+      if (paceSyncNoticeTimerRef.current) {
+        clearTimeout(paceSyncNoticeTimerRef.current);
+      }
+      paceSyncNoticeTimerRef.current = setTimeout(() => {
+        setPaceSyncNotice(false);
+      }, PACE_SYNC_NOTICE_MS);
+    }
+  }, [state.paceSyncState, audioMode.paceSyncEnabled]);
 
   const toggleRunPause = useCallback(() => {
     setPaceFeedback(false);
@@ -281,7 +338,7 @@ export default function RunScreen() {
     [onDoubleTap, onSwipeLeft, onSwipeRight, onSwipeUp, toggleRunPause],
   );
 
-  const gesture = useRunGestures(handlers);
+  const gesture = useRunGestures(handlers, !state.pocketGuardActive);
 
   const paceFeedbackText =
     !runPaused && paceFeedback
@@ -331,6 +388,24 @@ export default function RunScreen() {
                   </View>
                 ) : null}
               </View>
+
+              {/* Researcher-only trigger — never shown/explained to participants. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Research panel"
+                onPress={() => setResearchPanelOpen(true)}
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.researchButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="flask-outline"
+                  size={16}
+                  color={RunColors.muted}
+                />
+              </Pressable>
             </View>
 
             {/*
@@ -379,7 +454,45 @@ export default function RunScreen() {
         </GestureDetector>
 
         {activeOverlay ? <RunStatusOverlay kind={activeOverlay} /> : null}
+
+        {state.smartAlertKind ? (
+          <View pointerEvents="none" style={styles.smartToast}>
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={RunColors.secondary}
+            />
+            <Text style={styles.smartToastText} numberOfLines={2}>
+              {EVENT_LABELS[state.smartAlertKind]} — delivered at a natural
+              pause
+            </Text>
+          </View>
+        ) : null}
+
+        {paceSyncNotice ? (
+          <View pointerEvents="none" style={styles.paceSyncToast}>
+            <Ionicons
+              name="musical-notes-outline"
+              size={16}
+              color={RunColors.secondary}
+            />
+            <Text style={styles.paceSyncToastText}>
+              Music adapting to your pace
+            </Text>
+          </View>
+        ) : null}
       </View>
+
+      <ResearchPanel
+        visible={researchPanelOpen}
+        onClose={() => setResearchPanelOpen(false)}
+        pocketGuardActive={state.pocketGuardActive}
+        paceSyncState={state.paceSyncState}
+        onTriggerEvent={(kind) => triggerEvent(kind, EVENT_LABELS[kind])}
+        onSetPocketGuard={setPocketGuardActive}
+        onSetPaceSyncState={setPaceSyncState}
+        onRestoreToMusicFirst={restoreToMusicFirst}
+      />
     </SafeAreaView>
   );
 }
@@ -615,5 +728,60 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78,
+  },
+  researchButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: RunColors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: RunColors.border,
+  },
+  smartToast: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 96,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: RunColors.surface,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: RunColors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    zIndex: 15,
+  },
+  smartToastText: {
+    flex: 1,
+    color: RunColors.secondary,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  paceSyncToast: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: RunColors.surface,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: RunColors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    zIndex: 15,
+  },
+  paceSyncToastText: {
+    color: RunColors.secondary,
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

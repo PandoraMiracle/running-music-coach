@@ -29,14 +29,10 @@ const ARTWORK_COLORS: Record<string, string> = {
 
 /**
  * Temporary post-run mocks until Phase E run-completion metrics exist.
- * Deferred list length is the source of the count (not a separate hardcoded number).
+ * Deferred list itself now comes from live-triggered session state.
  */
 const MOCK_DURATION_SEC = 28 * 60 + 14;
 const MOCK_AVG_PACE_SEC = 339; // 5:39 /km
-const MOCK_DEFERRED_UPDATES = [
-  "1.5 km milestone",
-  "Cadence consistency tip",
-] as const;
 
 function paceValue(secPerKm: number) {
   return formatPace(secPerKm).replace("/km", "").trim();
@@ -52,7 +48,7 @@ export default function SummaryScreen() {
   const paceSyncLabel = audioMode.paceSyncEnabled
     ? "Pace Sync on"
     : "Pace Sync off";
-  const deferredUpdates = MOCK_DEFERRED_UPDATES;
+  const deferredUpdates = state.deferredUpdates;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -110,8 +106,8 @@ export default function SummaryScreen() {
               </Text>
             </View>
             {deferredUpdates.map((item) => (
-              <Text key={item} style={styles.deferredItem}>
-                {item}
+              <Text key={item.id} style={styles.deferredItem}>
+                {item.label}
               </Text>
             ))}
           </View>

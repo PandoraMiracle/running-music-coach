@@ -22,7 +22,10 @@ import type {
   AudioModePolicies,
   AudioModePreset,
   AudioModeType,
+  DeferredUpdate,
+  EventKind,
   MovementCondition,
+  PaceSyncState,
   PaceSyncStrength,
   Playlist,
   ScenarioSeed,
@@ -56,8 +59,11 @@ export type SessionState = {
    * Research/runtime flags for S07 overlays.
    * Driven by interruption / Pocket Guard logic — never by the bell UI.
    */
-  safetyAlertActive: boolean;
+  immediateAlertKind: "safety" | "navigation" | null;
+  smartAlertKind: "workout" | "hydration" | null;
+  deferredUpdates: DeferredUpdate[];
   pocketGuardActive: boolean;
+  paceSyncState: PaceSyncState;
   /** Research-only study condition (not consumer Run Type). */
   movementCondition: MovementCondition;
   /** Research-only scenario seed for controlled prototype sessions. */
@@ -73,8 +79,12 @@ type SessionAction =
   | { type: "SET_CUSTOM_BASE_PRESET"; basePresetType: DefaultAudioModeType }
   | { type: "SAVE_CUSTOM_MODE"; mode: SessionCustomAudioMode }
   | { type: "UPDATE_CUSTOM_MODE"; mode: SessionCustomAudioMode }
-  | { type: "SET_SAFETY_ALERT_ACTIVE"; active: boolean }
+  | { type: "TRIGGER_EVENT"; kind: EventKind; label: string }
+  | { type: "CLEAR_IMMEDIATE_ALERT" }
+  | { type: "CLEAR_SMART_ALERT" }
   | { type: "SET_POCKET_GUARD_ACTIVE"; active: boolean }
+  | { type: "SET_PACE_SYNC_STATE"; paceSyncState: PaceSyncState }
+  | { type: "RESTORE_TO_MUSIC_FIRST" }
   | { type: "SET_MOVEMENT_CONDITION"; movementCondition: MovementCondition }
   | { type: "SET_SCENARIO_SEED"; scenarioSeed: ScenarioSeed };
 
@@ -86,8 +96,11 @@ const initialState: SessionState = {
   audioModeId: DEFAULT_AUDIO_MODE.id,
   customModes: [],
   customBasePresetType: null,
-  safetyAlertActive: false,
+  immediateAlertKind: null,
+  smartAlertKind: null,
+  deferredUpdates: [],
   pocketGuardActive: false,
+  paceSyncState: "on_target",
   movementCondition: "jog",
   scenarioSeed: "normal",
 };
@@ -167,10 +180,47 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
         ),
         audioModeId: action.mode.id,
       };
-    case "SET_SAFETY_ALERT_ACTIVE":
-      return { ...state, safetyAlertActive: action.active };
+    case "TRIGGER_EVENT": {
+      const policy = resolveAudioMode(state.audioModeId, state.customModes)
+        .policies[action.kind];
+      if (policy === "immediate") {
+        return {
+          ...state,
+          immediateAlertKind: action.kind as "safety" | "navigation",
+        };
+      }
+      if (policy === "smart") {
+        return {
+          ...state,
+          smartAlertKind: action.kind as "workout" | "hydration",
+        };
+      }
+      return {
+        ...state,
+        deferredUpdates: [
+          ...state.deferredUpdates,
+          {
+            id: `${action.kind}-${Date.now()}`,
+            kind: action.kind,
+            label: action.label,
+          },
+        ],
+      };
+    }
+    case "CLEAR_IMMEDIATE_ALERT":
+      return { ...state, immediateAlertKind: null };
+    case "CLEAR_SMART_ALERT":
+      return { ...state, smartAlertKind: null };
     case "SET_POCKET_GUARD_ACTIVE":
       return { ...state, pocketGuardActive: action.active };
+    case "SET_PACE_SYNC_STATE":
+      return { ...state, paceSyncState: action.paceSyncState };
+    case "RESTORE_TO_MUSIC_FIRST":
+      return {
+        ...state,
+        audioModeId: DEFAULT_AUDIO_MODE.id,
+        paceSyncState: "on_target",
+      };
     case "SET_MOVEMENT_CONDITION":
       return { ...state, movementCondition: action.movementCondition };
     case "SET_SCENARIO_SEED":
@@ -191,8 +241,12 @@ type SessionContextValue = {
   saveCustomMode: (mode: SessionCustomAudioMode) => void;
   updateCustomMode: (mode: SessionCustomAudioMode) => void;
   /** Research/runtime — not exposed on Running UI. */
-  setSafetyAlertActive: (active: boolean) => void;
+  triggerEvent: (kind: EventKind, label: string) => void;
+  clearImmediateAlert: () => void;
+  clearSmartAlert: () => void;
   setPocketGuardActive: (active: boolean) => void;
+  setPaceSyncState: (paceSyncState: PaceSyncState) => void;
+  restoreToMusicFirst: () => void;
   setMovementCondition: (movementCondition: MovementCondition) => void;
   setScenarioSeed: (scenarioSeed: ScenarioSeed) => void;
   playlist: Playlist;
@@ -219,10 +273,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       saveCustomMode: (mode) => dispatch({ type: "SAVE_CUSTOM_MODE", mode }),
       updateCustomMode: (mode) =>
         dispatch({ type: "UPDATE_CUSTOM_MODE", mode }),
-      setSafetyAlertActive: (active) =>
-        dispatch({ type: "SET_SAFETY_ALERT_ACTIVE", active }),
+      triggerEvent: (kind, label) =>
+        dispatch({ type: "TRIGGER_EVENT", kind, label }),
+      clearImmediateAlert: () => dispatch({ type: "CLEAR_IMMEDIATE_ALERT" }),
+      clearSmartAlert: () => dispatch({ type: "CLEAR_SMART_ALERT" }),
       setPocketGuardActive: (active) =>
         dispatch({ type: "SET_POCKET_GUARD_ACTIVE", active }),
+      setPaceSyncState: (paceSyncState) =>
+        dispatch({ type: "SET_PACE_SYNC_STATE", paceSyncState }),
+      restoreToMusicFirst: () => dispatch({ type: "RESTORE_TO_MUSIC_FIRST" }),
       setMovementCondition: (movementCondition) =>
         dispatch({ type: "SET_MOVEMENT_CONDITION", movementCondition }),
       setScenarioSeed: (scenarioSeed) =>

@@ -55,6 +55,14 @@ export type Playlist = {
 
 export type AudioModePolicies = Record<EventKind, DeliveryPolicy>;
 
+export type PaceSyncState = "on_target" | "too_slow" | "too_fast";
+
+export type DeferredUpdate = {
+  id: string;
+  kind: EventKind;
+  label: string;
+};
+
 export type AudioModePreset = {
   id: string;
   type: Exclude<AudioModeType, "custom">;
