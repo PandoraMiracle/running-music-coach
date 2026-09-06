@@ -87,7 +87,10 @@ export function ResearchPanel({
                 key={item.kind}
                 accessibilityRole="button"
                 accessibilityLabel={`Trigger ${item.label}`}
-                onPress={() => onTriggerEvent(item.kind)}
+                onPress={() => {
+                  onTriggerEvent(item.kind);
+                  onClose();
+                }}
                 style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               >
                 <Text style={styles.cardTitle}>{item.label}</Text>
@@ -111,7 +114,10 @@ export function ResearchPanel({
                   key={option.id}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  onPress={() => onSetPaceSyncState(option.id)}
+                  onPress={() => {
+                    onSetPaceSyncState(option.id);
+                    onClose();
+                  }}
                   style={({ pressed }) => [
                     styles.segment,
                     selected && styles.segmentSelected,
@@ -136,7 +142,10 @@ export function ResearchPanel({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected: !pocketGuardActive }}
-              onPress={() => onSetPocketGuard(false)}
+              onPress={() => {
+                onSetPocketGuard(false);
+                onClose();
+              }}
               style={({ pressed }) => [
                 styles.segment,
                 !pocketGuardActive && styles.segmentSelected,
@@ -155,7 +164,10 @@ export function ResearchPanel({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected: pocketGuardActive }}
-              onPress={() => onSetPocketGuard(true)}
+              onPress={() => {
+                onSetPocketGuard(true);
+                onClose();
+              }}
               style={({ pressed }) => [
                 styles.segment,
                 pocketGuardActive && styles.segmentSelected,
@@ -176,7 +188,10 @@ export function ResearchPanel({
           <Text style={styles.sectionLabel}>Mandatory restore (before Task 6a)</Text>
           <Pressable
             accessibilityRole="button"
-            onPress={onRestoreToMusicFirst}
+            onPress={() => {
+              onRestoreToMusicFirst();
+              onClose();
+            }}
             style={({ pressed }) => [styles.restoreButton, pressed && styles.pressed]}
           >
             <Text style={styles.restoreLabel}>

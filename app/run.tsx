@@ -373,110 +373,116 @@ export default function RunScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.phone}>
-        <GestureDetector gesture={gesture}>
-          <View style={styles.content} collapsable={false}>
-            <View style={styles.header}>
-              <View style={styles.headerStatus}>
-                <View
-                  style={runPaused ? styles.pausedDot : styles.statusDot}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    runPaused && styles.statusTextPaused,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {runPaused
-                    ? `RUN PAUSED · ${audioMode.name}`
-                    : `RUNNING · ${audioMode.name}`}
-                </Text>
-              </View>
-
-              {/* Passive information indicator — not interactive. */}
-              <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                pointerEvents="none"
-                style={styles.bellIndicator}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={20}
-                  color={RunColors.secondary}
-                />
-                {deferredCount > 0 ? (
-                  <View style={styles.bellBadge}>
-                    <Text style={styles.bellBadgeText}>
-                      {deferredCount > 9 ? "9+" : String(deferredCount)}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Researcher-only trigger — never shown/explained to participants. */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Research panel"
-                onPress={() => setResearchPanelOpen(true)}
-                hitSlop={10}
-                style={({ pressed }) => [
-                  styles.researchButton,
-                  pressed && styles.pressed,
+        <View style={styles.content} collapsable={false}>
+          {/*
+            Header lives outside GestureDetector on purpose: a Pressable
+            nested inside the same detector as the double-tap gesture has
+            its touches intermittently swallowed while RNGH decides whether
+            a tap is the start of a double-tap (native tap-count arbitration).
+          */}
+          <View style={styles.header}>
+            <View style={styles.headerStatus}>
+              <View style={runPaused ? styles.pausedDot : styles.statusDot} />
+              <Text
+                style={[
+                  styles.statusText,
+                  runPaused && styles.statusTextPaused,
                 ]}
+                numberOfLines={1}
               >
-                <Ionicons
-                  name="flask-outline"
-                  size={16}
-                  color={RunColors.muted}
-                />
-              </Pressable>
+                {runPaused
+                  ? `RUN PAUSED · ${audioMode.name}`
+                  : `RUNNING · ${audioMode.name}`}
+              </Text>
             </View>
 
-            {/*
-              Stage: breathing space above metrics + quiet area below.
-              Top flex > quiet flex places Pace in the upper-middle / center band.
-            */}
-            <View style={styles.metricsStage}>
-              <View style={styles.stageBreathing} />
-
-              <MetricsArea
-                paceValue={currentPace.value}
-                paceUnit={currentPace.unit}
-                feedbackText={paceFeedbackText}
-                target={targetPace.value}
-                distance={`${MOCK_DISTANCE_KM.toFixed(1)} km`}
-                time={formatDuration(MOCK_ELAPSED_SEC)}
-                artworkColor={artworkColor}
-                trackTitle={track.title}
-                trackSubtitle={`${track.artist} · ${musicLabel}`}
+            {/* Passive information indicator — not interactive. */}
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              pointerEvents="none"
+              style={styles.bellIndicator}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={20}
+                color={RunColors.secondary}
               />
-
-              <View style={styles.quietSpace}>
-                {runPaused ? (
-                  <Text style={styles.resumeHint}>Long press to resume</Text>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Reserved bottom slot keeps metrics skeleton stable across states. */}
-            <View style={styles.bottomSlot}>
-              {runPaused ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Finish Run"
-                  onPress={finishRun}
-                  style={({ pressed }) => [
-                    styles.finishButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.finishLabel}>Finish Run</Text>
-                </Pressable>
+              {deferredCount > 0 ? (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {deferredCount > 9 ? "9+" : String(deferredCount)}
+                  </Text>
+                </View>
               ) : null}
             </View>
+
+            {/* Researcher-only trigger — never shown/explained to participants. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Research panel"
+              onPress={() => setResearchPanelOpen(true)}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.researchButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="flask-outline"
+                size={16}
+                color={RunColors.muted}
+              />
+            </Pressable>
           </View>
-        </GestureDetector>
+
+          <GestureDetector gesture={gesture}>
+            <View style={styles.gestureArea} collapsable={false}>
+              {/*
+                Stage: breathing space above metrics + quiet area below.
+                Top flex > quiet flex places Pace in the upper-middle / center band.
+              */}
+              <View style={styles.metricsStage}>
+                <View style={styles.stageBreathing} />
+
+                <MetricsArea
+                  paceValue={currentPace.value}
+                  paceUnit={currentPace.unit}
+                  feedbackText={paceFeedbackText}
+                  target={targetPace.value}
+                  distance={`${MOCK_DISTANCE_KM.toFixed(1)} km`}
+                  time={formatDuration(MOCK_ELAPSED_SEC)}
+                  artworkColor={artworkColor}
+                  trackTitle={track.title}
+                  trackSubtitle={`${track.artist} · ${musicLabel}`}
+                />
+
+                <View style={styles.quietSpace}>
+                  {runPaused ? (
+                    <Text style={styles.resumeHint}>Long press to resume</Text>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Reserved bottom slot keeps metrics skeleton stable across states. */}
+              <View style={styles.bottomSlot}>
+                {runPaused ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Finish Run"
+                    onPress={finishRun}
+                    style={({ pressed }) => [
+                      styles.finishButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.finishLabel}>Finish Run</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </GestureDetector>
+        </View>
 
         {activeOverlay ? <RunStatusOverlay kind={activeOverlay} /> : null}
 
@@ -602,6 +608,10 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "700",
     lineHeight: 11,
+  },
+  gestureArea: {
+    flex: 1,
+    width: "100%",
   },
   metricsStage: {
     flex: 1,
