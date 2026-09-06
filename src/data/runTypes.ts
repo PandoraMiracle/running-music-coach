@@ -10,17 +10,17 @@ export const RUN_TYPES: RunTypeOption[] = [
   {
     id: "easy",
     name: "Easy Run",
-    description: "More flexible pace",
+    description: "Relaxed, conversational effort",
   },
   {
     id: "tempo",
     name: "Tempo Run",
-    description: "More consistent pace",
+    description: "Sustained, focused effort",
   },
   {
     id: "recovery",
     name: "Recovery Run",
-    description: "Gentle pace guidance",
+    description: "Light effort for active rest",
   },
 ];
 
