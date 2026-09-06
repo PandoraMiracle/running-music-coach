@@ -18,11 +18,13 @@ import {
   useRunGestures,
 } from "@/hooks/use-run-gestures";
 import { useSession } from "@/store/session-store";
-import type { MusicStatus } from "@/types";
+import type { EventKind, MusicStatus } from "@/types";
 
 const IMMEDIATE_ALERT_MS = 3000;
 const SMART_ALERT_MS = 3500;
 const PACE_SYNC_NOTICE_MS = 2600;
+/** Simulated "wait for a natural pause" before a Smart Timing event delivers. */
+const SMART_TIMING_DELAY_MS = 3000;
 
 const RunColors = {
   bg: "#F5F7F4",
@@ -216,6 +218,9 @@ export default function RunScreen() {
   const paceSyncNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const smartDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const prevPaceSyncStateRef = useRef(state.paceSyncState);
   const prevImmediateAlertKindRef = useRef(state.immediateAlertKind);
 
@@ -237,6 +242,7 @@ export default function RunScreen() {
       if (paceSyncNoticeTimerRef.current) {
         clearTimeout(paceSyncNoticeTimerRef.current);
       }
+      if (smartDelayTimerRef.current) clearTimeout(smartDelayTimerRef.current);
     };
   }, []);
 
@@ -339,6 +345,25 @@ export default function RunScreen() {
   );
 
   const gesture = useRunGestures(handlers, !state.pocketGuardActive);
+
+  const handleTriggerEvent = useCallback(
+    (kind: EventKind) => {
+      const label = EVENT_LABELS[kind];
+      if (audioMode.policies[kind] === "smart") {
+        // Smart Timing must not deliver instantly — wait for a simulated
+        // natural pause first, matching the study script's requirement.
+        if (smartDelayTimerRef.current) {
+          clearTimeout(smartDelayTimerRef.current);
+        }
+        smartDelayTimerRef.current = setTimeout(() => {
+          triggerEvent(kind, label);
+        }, SMART_TIMING_DELAY_MS);
+        return;
+      }
+      triggerEvent(kind, label);
+    },
+    [audioMode.policies, triggerEvent],
+  );
 
   const paceFeedbackText =
     !runPaused && paceFeedback
@@ -488,7 +513,7 @@ export default function RunScreen() {
         onClose={() => setResearchPanelOpen(false)}
         pocketGuardActive={state.pocketGuardActive}
         paceSyncState={state.paceSyncState}
-        onTriggerEvent={(kind) => triggerEvent(kind, EVENT_LABELS[kind])}
+        onTriggerEvent={handleTriggerEvent}
         onSetPocketGuard={setPocketGuardActive}
         onSetPaceSyncState={setPaceSyncState}
         onRestoreToMusicFirst={restoreToMusicFirst}

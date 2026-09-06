@@ -86,7 +86,8 @@ type SessionAction =
   | { type: "SET_PACE_SYNC_STATE"; paceSyncState: PaceSyncState }
   | { type: "RESTORE_TO_MUSIC_FIRST" }
   | { type: "SET_MOVEMENT_CONDITION"; movementCondition: MovementCondition }
-  | { type: "SET_SCENARIO_SEED"; scenarioSeed: ScenarioSeed };
+  | { type: "SET_SCENARIO_SEED"; scenarioSeed: ScenarioSeed }
+  | { type: "RESET_PROTOTYPE" };
 
 const initialState: SessionState = {
   runTypeId: "easy",
@@ -225,6 +226,8 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
       return { ...state, movementCondition: action.movementCondition };
     case "SET_SCENARIO_SEED":
       return { ...state, scenarioSeed: action.scenarioSeed };
+    case "RESET_PROTOTYPE":
+      return { ...initialState };
     default:
       return state;
   }
@@ -249,6 +252,8 @@ type SessionContextValue = {
   restoreToMusicFirst: () => void;
   setMovementCondition: (movementCondition: MovementCondition) => void;
   setScenarioSeed: (scenarioSeed: ScenarioSeed) => void;
+  /** Study "next participant" reset — full return to project defaults. */
+  resetPrototype: () => void;
   playlist: Playlist;
   audioMode: AudioModePreset;
 };
@@ -286,6 +291,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "SET_MOVEMENT_CONDITION", movementCondition }),
       setScenarioSeed: (scenarioSeed) =>
         dispatch({ type: "SET_SCENARIO_SEED", scenarioSeed }),
+      resetPrototype: () => dispatch({ type: "RESET_PROTOTYPE" }),
       playlist: resolvePlaylist(state.playlistId),
       audioMode: resolveAudioMode(state.audioModeId, state.customModes),
     };

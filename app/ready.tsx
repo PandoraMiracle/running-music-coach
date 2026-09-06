@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/primary-button";
@@ -57,16 +57,40 @@ export default function ReadyScreen() {
     ? `Custom · Pace Sync ${audioMode.paceSyncEnabled ? "on" : "off"}`
     : `Pace Sync ${audioMode.paceSyncEnabled ? "on" : "off"}`;
 
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(ROUTES.home);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.phone}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={12}
+            onPress={goBack}
+            style={({ pressed }) => [
+              styles.backHit,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.backGlyph}>‹</Text>
+          </Pressable>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Ready to Run</Text>
+            <Text style={styles.subtitle}>One glance. Then go.</Text>
+          </View>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>Ready to Run</Text>
-          <Text style={styles.subtitle}>One glance. Then go.</Text>
-
           <View style={styles.summaryCard}>
             <Text style={styles.cardLabel}>Run type</Text>
             <Text style={styles.runType}>{runType.name}</Text>
@@ -136,10 +160,38 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 390,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingTop: Spacing.three,
+    paddingBottom: 8,
+    gap: 4,
+  },
+  backHit: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  backGlyph: {
+    color: ReadyColors.ink,
+    fontSize: 28,
+    fontWeight: "300",
+    lineHeight: 30,
+  },
+  headerText: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: Spacing.three,
+    paddingTop: 8,
     paddingBottom: Spacing.four,
   },
   title: {
@@ -151,7 +203,6 @@ const styles = StyleSheet.create({
     color: ReadyColors.secondary,
     fontSize: 15,
     marginTop: 4,
-    marginBottom: 20,
   },
   summaryCard: {
     backgroundColor: ReadyColors.surface,

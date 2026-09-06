@@ -1,5 +1,6 @@
 import { router } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { useCallback } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/primary-button";
@@ -39,7 +40,7 @@ function paceValue(secPerKm: number) {
 }
 
 export default function SummaryScreen() {
-  const { state, playlist, audioMode } = useSession();
+  const { state, playlist, audioMode, resetPrototype } = useSession();
 
   const runType =
     RUN_TYPES.find((item) => item.id === state.runTypeId) ?? RUN_TYPES[0];
@@ -49,6 +50,24 @@ export default function SummaryScreen() {
     ? "Pace Sync on"
     : "Pace Sync off";
   const deferredUpdates = state.deferredUpdates;
+
+  const confirmNextParticipant = useCallback(() => {
+    Alert.alert(
+      "End this participant session and reset the prototype?",
+      "Restores full project defaults and returns to Research Test Setup. Deferred queue and all study state will be cleared.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Next participant",
+          style: "destructive",
+          onPress: () => {
+            resetPrototype();
+            router.replace(ROUTES.testSetup);
+          },
+        },
+      ],
+    );
+  }, [resetPrototype]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -98,19 +117,21 @@ export default function SummaryScreen() {
             </View>
           </View>
 
-          <View style={styles.deferredCard}>
-            <View style={styles.deferredHeader}>
-              <Text style={styles.deferredTitle}>Deferred updates</Text>
-              <Text style={styles.deferredCount}>
-                {deferredUpdates.length}
-              </Text>
+          {deferredUpdates.length > 0 ? (
+            <View style={styles.deferredCard}>
+              <View style={styles.deferredHeader}>
+                <Text style={styles.deferredTitle}>Deferred updates</Text>
+                <Text style={styles.deferredCount}>
+                  {deferredUpdates.length}
+                </Text>
+              </View>
+              {deferredUpdates.map((item) => (
+                <Text key={item.id} style={styles.deferredItem}>
+                  {item.label}
+                </Text>
+              ))}
             </View>
-            {deferredUpdates.map((item) => (
-              <Text key={item.id} style={styles.deferredItem}>
-                {item.label}
-              </Text>
-            ))}
-          </View>
+          ) : null}
 
           <View style={styles.flexSpace} />
 
@@ -118,6 +139,21 @@ export default function SummaryScreen() {
             label="Done"
             onPress={() => router.replace(ROUTES.home)}
           />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Next participant. Research only."
+            onPress={confirmNextParticipant}
+            style={({ pressed }) => [
+              styles.researchAction,
+              pressed && styles.researchActionPressed,
+            ]}
+          >
+            <Text style={styles.researchBadge}>RESEARCH ONLY</Text>
+            <Text style={styles.researchActionLabel}>
+              Next participant / Reset prototype
+            </Text>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -253,5 +289,31 @@ const styles = StyleSheet.create({
   flexSpace: {
     flex: 1,
     minHeight: 24,
+  },
+  researchAction: {
+    marginTop: 12,
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D4A017",
+    backgroundColor: "#F7F1DE",
+  },
+  researchActionPressed: {
+    opacity: 0.85,
+  },
+  researchBadge: {
+    color: "#8A5A12",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  researchActionLabel: {
+    color: "#5C4210",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
