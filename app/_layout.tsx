@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { Palette } from "@/constants/theme";
+import { SessionProvider } from "@/store/session-store";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,15 +14,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Palette.bg }}>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "slide_from_right",
-          contentStyle: { backgroundColor: Palette.bg },
-        }}
-      />
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#F5F7F4" }}>
+      <StatusBar style="dark" />
+      <SessionProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: "#F5F7F4" },
+          }}
+        />
+      </SessionProvider>
     </GestureHandlerRootView>
   );
 }
