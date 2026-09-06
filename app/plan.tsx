@@ -146,8 +146,8 @@ export default function PlanScreen() {
               <SettingStepper
                 label="Target pace"
                 display={`${pace.value} ${pace.unit}`}
-                onDecrement={() => adjustPace(1)}
-                onIncrement={() => adjustPace(-1)}
+                onDecrement={() => adjustPace(-1)}
+                onIncrement={() => adjustPace(1)}
               />
             </View>
           </View>
