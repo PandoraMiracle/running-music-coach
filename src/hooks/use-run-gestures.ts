@@ -37,19 +37,54 @@ export function pulseHaptic(
   }
 }
 
+export type UseRunGesturesOptions = {
+  /**
+   * When false, recognized run gestures are ignored (Pocket Guard).
+   * Music and run state are unchanged; no accepted-gesture feedback.
+   */
+  gesturesEnabled?: boolean;
+};
+
 /**
  * One-finger Running gestures (frozen mapping).
  * Exclusive composition avoids tap/swipe/long-press collisions.
+ * Pocket Guard: set gesturesEnabled=false to ignore all handlers centrally.
  */
-export function useRunGestures(handlers: RunGestureHandlers) {
+export function useRunGestures(
+  handlers: RunGestureHandlers,
+  options: UseRunGesturesOptions = {},
+) {
+  const gesturesEnabled = options.gesturesEnabled !== false;
+
   return useMemo(() => {
+    const onDoubleTap = () => {
+      if (!gesturesEnabled) return;
+      handlers.onDoubleTap();
+    };
+    const onSwipeLeft = () => {
+      if (!gesturesEnabled) return;
+      handlers.onSwipeLeft();
+    };
+    const onSwipeRight = () => {
+      if (!gesturesEnabled) return;
+      handlers.onSwipeRight();
+    };
+    const onSwipeUp = () => {
+      if (!gesturesEnabled) return;
+      handlers.onSwipeUp();
+    };
+    const onLongPress = () => {
+      if (!gesturesEnabled) return;
+      handlers.onLongPress();
+    };
+
     const doubleTap = Gesture.Tap()
       .numberOfTaps(2)
       .maxDuration(280)
       .onEnd((_event, success) => {
         "worklet";
         if (success) {
-          runOnJS(handlers.onDoubleTap)();
+          runOnJS(onDoubleTap)();
         }
       });
 
@@ -58,7 +93,7 @@ export function useRunGestures(handlers: RunGestureHandlers) {
       .maxDistance(18)
       .onStart(() => {
         "worklet";
-        runOnJS(handlers.onLongPress)();
+        runOnJS(onLongPress)();
       });
 
     const pan = Gesture.Pan()
@@ -73,20 +108,21 @@ export function useRunGestures(handlers: RunGestureHandlers) {
 
         if (absX >= absY) {
           if (translationX < 0) {
-            runOnJS(handlers.onSwipeLeft)();
+            runOnJS(onSwipeLeft)();
           } else {
-            runOnJS(handlers.onSwipeRight)();
+            runOnJS(onSwipeRight)();
           }
           return;
         }
 
         if (translationY < 0) {
-          runOnJS(handlers.onSwipeUp)();
+          runOnJS(onSwipeUp)();
         }
       });
 
     return Gesture.Exclusive(longPress, pan, doubleTap);
   }, [
+    gesturesEnabled,
     handlers.onDoubleTap,
     handlers.onLongPress,
     handlers.onSwipeLeft,

@@ -9,6 +9,7 @@ import {
   RunStatusOverlay,
   type RunOverlayKind,
 } from "@/components/run-status-overlay";
+import { ResearchControlPanel } from "@/components/research-control-panel";
 import { formatDuration, formatPace } from "@/constants/format";
 import { ROUTES } from "@/constants/routes";
 import { Spacing } from "@/constants/theme";
@@ -17,7 +18,12 @@ import {
   useRunGestures,
 } from "@/hooks/use-run-gestures";
 import { useSession } from "@/store/session-store";
-import type { MusicStatus } from "@/types";
+import type {
+  ImmediateEventKind,
+  MusicStatus,
+  PaceCondition,
+  SmartTimingEventKind,
+} from "@/types";
 
 const RunColors = {
   bg: "#F5F7F4",
@@ -37,17 +43,22 @@ const ARTWORK_COLORS: Record<string, string> = {
   "recovery-mix": "#6B7A4A",
 };
 
-/** Existing mock in-run snapshot (not a second state model). */
-const MOCK_CURRENT_PACE_SEC = 368; // 6:08 /km
+/** Existing mock distance/time snapshot (not a second state model). */
 const MOCK_DISTANCE_KM = 1.6;
 const MOCK_ELAPSED_SEC = 9 * 60 + 42;
 const PACE_FEEDBACK_MS = 1600;
 
-/** Same provisional deferred list used by S08 until Phase E queue exists. */
-const MOCK_DEFERRED_UPDATES = [
-  "1.5 km milestone",
-  "Cadence consistency tip",
-] as const;
+/** Brief Immediate overlay (Task 4a) — controlled study timeout. */
+const IMMEDIATE_EVENT_MS = 2500;
+
+/** Smart Timing pending wait (Task 4b) — controlled study delay, not a real scheduler. */
+const SMART_TIMING_DELAY_MS = 3000;
+
+/** Brief Smart Timing delivery feedback after the controlled wait. */
+const SMART_TIMING_FEEDBACK_MS = 2500;
+
+/** Simulated current-pace offset vs target for research paceCondition (sec/km). */
+const PACE_MISMATCH_OFFSET_SEC = 18;
 
 /** Shared pace size for NORMAL + PAUSED (390px-safe). */
 const PACE_VALUE_SIZE = 76;
@@ -55,14 +66,36 @@ const FINISH_SLOT_HEIGHT = 48;
 const PACE_FEEDBACK_SLOT_HEIGHT = 26;
 
 /**
- * Safety wins visual priority when both runtime flags are active.
- * Overlays are never driven by the passive bell indicator.
+ * Research-only simulated current pace for Task 5 visibility.
+ * Not GPS — controlled study display.
+ */
+function simulatedCurrentPaceSec(
+  targetSecPerKm: number,
+  paceCondition: PaceCondition,
+): number {
+  if (paceCondition === "too_slow") {
+    return targetSecPerKm + PACE_MISMATCH_OFFSET_SEC;
+  }
+  if (paceCondition === "too_fast") {
+    return Math.max(180, targetSecPerKm - PACE_MISMATCH_OFFSET_SEC);
+  }
+  return targetSecPerKm;
+}
+
+/**
+ * Priority: Immediate > Smart Timing delivery > Pocket Guard.
+ * Pending Smart Timing has no large overlay.
+ * Overlays never imply RUN PAUSED.
  */
 function resolveActiveOverlay(
-  safetyAlertActive: boolean,
+  activeImmediateEvent: ImmediateEventKind | null,
+  smartTimingDelivery: SmartTimingEventKind | null,
   pocketGuardActive: boolean,
 ): RunOverlayKind | null {
-  if (safetyAlertActive) return "safety";
+  if (activeImmediateEvent === "safety") return "safety";
+  if (activeImmediateEvent === "navigation") return "navigation";
+  if (smartTimingDelivery === "important_coaching") return "coaching";
+  if (smartTimingDelivery === "hydration") return "hydration";
   if (pocketGuardActive) return "pocket_guard";
   return null;
 }
@@ -132,14 +165,29 @@ function NowPlayingRow({
   artworkColor,
   title,
   subtitle,
+  adapting = false,
+  adaptationLabel = null,
 }: {
   artworkColor: string;
   title: string;
   subtitle: string;
+  adapting?: boolean;
+  adaptationLabel?: string | null;
 }) {
   return (
-    <View style={styles.nowPlaying}>
-      <View style={[styles.artwork, { backgroundColor: artworkColor }]} />
+    <View
+      style={[
+        styles.nowPlaying,
+        adapting && styles.nowPlayingAdapting,
+      ]}
+    >
+      <View
+        style={[
+          styles.artwork,
+          { backgroundColor: artworkColor },
+          adapting && styles.artworkAdapting,
+        ]}
+      />
       <View style={styles.trackMeta}>
         <Text style={styles.trackTitle} numberOfLines={1}>
           {title}
@@ -147,6 +195,11 @@ function NowPlayingRow({
         <Text style={styles.trackArtist} numberOfLines={1}>
           {subtitle}
         </Text>
+        {adaptationLabel ? (
+          <Text style={styles.adaptationLabel} numberOfLines={1}>
+            {adaptationLabel}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -166,6 +219,8 @@ function MetricsArea({
   artworkColor,
   trackTitle,
   trackSubtitle,
+  adapting = false,
+  adaptationLabel = null,
 }: {
   paceValue: string;
   paceUnit: string;
@@ -176,6 +231,8 @@ function MetricsArea({
   artworkColor: string;
   trackTitle: string;
   trackSubtitle: string;
+  adapting?: boolean;
+  adaptationLabel?: string | null;
 }) {
   return (
     <View style={styles.metricsArea}>
@@ -189,30 +246,58 @@ function MetricsArea({
         artworkColor={artworkColor}
         title={trackTitle}
         subtitle={trackSubtitle}
+        adapting={adapting}
+        adaptationLabel={adaptationLabel}
       />
     </View>
   );
 }
 
 export default function RunScreen() {
-  const { state, playlist, audioMode } = useSession();
+  const {
+    state,
+    playlist,
+    audioMode,
+    pocketGuardActive,
+    paceSyncAdaptationActive,
+    clearImmediateEvent,
+    clearSmartTimingEvent,
+  } = useSession();
 
   const [musicStatus, setMusicStatus] = useState<MusicStatus>("playing");
   const [trackIndex, setTrackIndex] = useState(0);
   const [runPaused, setRunPaused] = useState(false);
   const [paceFeedback, setPaceFeedback] = useState(false);
+  /** Temporary delivery UI only — not research SoT. */
+  const [smartTimingDelivery, setSmartTimingDelivery] =
+    useState<SmartTimingEventKind | null>(null);
   const paceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasAdaptingRef = useRef(false);
 
   const tracks = playlist.tracks;
   const track = tracks[Math.min(trackIndex, tracks.length - 1)] ?? tracks[0];
-  const currentPace = paceParts(MOCK_CURRENT_PACE_SEC);
+  const simulatedPaceSec = simulatedCurrentPaceSec(
+    state.targetPaceSecPerKm,
+    state.paceCondition,
+  );
+  const currentPace = paceParts(simulatedPaceSec);
   const targetPace = paceParts(state.targetPaceSecPerKm);
   const artworkColor = ARTWORK_COLORS[playlist.id] ?? RunColors.accent;
   const musicLabel = musicStatus === "playing" ? "Playing" : "Paused";
-  const deferredCount = MOCK_DEFERRED_UPDATES.length;
+  const adaptingMusicLabel =
+    paceSyncAdaptationActive && musicStatus === "playing"
+      ? "Adjusting rhythm"
+      : musicLabel;
+  const adaptationLabel = paceSyncAdaptationActive
+    ? "Pace Sync · Adjusting rhythm gently"
+    : null;
+  const deferredUpdates = state.deferredUpdates;
+  const deferredCount = deferredUpdates.length;
+  const pendingSmart = state.pendingSmartTimingEvent;
   const activeOverlay = resolveActiveOverlay(
-    state.safetyAlertActive,
-    state.pocketGuardActive,
+    state.activeImmediateEvent,
+    smartTimingDelivery,
+    pocketGuardActive,
   );
 
   useEffect(() => {
@@ -220,6 +305,57 @@ export default function RunScreen() {
       if (paceTimerRef.current) clearTimeout(paceTimerRef.current);
     };
   }, []);
+
+  // Controlled Immediate timeout — clears only activeImmediateEvent.
+  useEffect(() => {
+    if (!state.activeImmediateEvent) return;
+
+    pulseHaptic("strong");
+    const timer = setTimeout(() => {
+      clearImmediateEvent();
+    }, IMMEDIATE_EVENT_MS);
+
+    return () => clearTimeout(timer);
+  }, [state.activeImmediateEvent, clearImmediateEvent]);
+
+  // Smart Timing: pending → fixed delay → brief delivery UI → clear pending.
+  // Replacement (new pending id) cancels/restarts. RESET clears pending → no delivery.
+  useEffect(() => {
+    if (!pendingSmart) return;
+
+    const kind = pendingSmart.kind;
+    const timer = setTimeout(() => {
+      clearSmartTimingEvent();
+      setSmartTimingDelivery(kind);
+      pulseHaptic("light");
+    }, SMART_TIMING_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [pendingSmart?.id, clearSmartTimingEvent]);
+
+  // Brief Smart Timing delivery feedback timeout.
+  useEffect(() => {
+    if (!smartTimingDelivery) return;
+
+    const timer = setTimeout(() => {
+      setSmartTimingDelivery(null);
+    }, SMART_TIMING_FEEDBACK_MS);
+
+    return () => clearTimeout(timer);
+  }, [smartTimingDelivery]);
+
+  // RESET_SCENARIO bumps researchEpoch — drop any in-flight delivery UI.
+  useEffect(() => {
+    setSmartTimingDelivery(null);
+  }, [state.researchEpoch]);
+
+  // Task 5: one-shot haptic when Pace Sync adaptation becomes active.
+  useEffect(() => {
+    if (paceSyncAdaptationActive && !wasAdaptingRef.current) {
+      pulseHaptic("light");
+    }
+    wasAdaptingRef.current = paceSyncAdaptationActive;
+  }, [paceSyncAdaptationActive]);
 
   const toggleRunPause = useCallback(() => {
     setPaceFeedback(false);
@@ -281,7 +417,9 @@ export default function RunScreen() {
     [onDoubleTap, onSwipeLeft, onSwipeRight, onSwipeUp, toggleRunPause],
   );
 
-  const gesture = useRunGestures(handlers);
+  const gesture = useRunGestures(handlers, {
+    gesturesEnabled: !pocketGuardActive,
+  });
 
   const paceFeedbackText =
     !runPaused && paceFeedback
@@ -349,10 +487,33 @@ export default function RunScreen() {
                 time={formatDuration(MOCK_ELAPSED_SEC)}
                 artworkColor={artworkColor}
                 trackTitle={track.title}
-                trackSubtitle={`${track.artist} · ${musicLabel}`}
+                trackSubtitle={`${track.artist} · ${adaptingMusicLabel}`}
+                adapting={paceSyncAdaptationActive}
+                adaptationLabel={adaptationLabel}
               />
 
               <View style={styles.quietSpace}>
+                {runPaused && deferredCount > 0 ? (
+                  <View
+                    accessibilityRole="summary"
+                    style={styles.deferredPausedBlock}
+                  >
+                    <Text style={styles.deferredPausedTitle}>
+                      {deferredCount === 1
+                        ? "1 saved update"
+                        : `${deferredCount} saved updates`}
+                    </Text>
+                    {deferredUpdates.map((item) => (
+                      <Text
+                        key={item.id}
+                        style={styles.deferredPausedItem}
+                        numberOfLines={2}
+                      >
+                        {item.label}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
                 {runPaused ? (
                   <Text style={styles.resumeHint}>Long press to resume</Text>
                 ) : null}
@@ -379,6 +540,9 @@ export default function RunScreen() {
         </GestureDetector>
 
         {activeOverlay ? <RunStatusOverlay kind={activeOverlay} /> : null}
+
+        {/* Outside GestureDetector — does not remount /run or alter gestures. */}
+        <ResearchControlPanel />
       </View>
     </SafeAreaView>
   );
@@ -558,10 +722,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  nowPlayingAdapting: {
+    borderColor: RunColors.accent,
+  },
   artwork: {
     width: 50,
     height: 50,
     borderRadius: 10,
+  },
+  artworkAdapting: {
+    opacity: 0.85,
   },
   trackMeta: {
     flex: 1,
@@ -577,6 +747,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "400",
   },
+  adaptationLabel: {
+    marginTop: 2,
+    color: RunColors.accent,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   /**
    * Slightly less than stageBreathing so the Pace group sits in the
    * upper-middle / visual-center band, with quiet space remaining below.
@@ -587,6 +763,31 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
+  },
+  deferredPausedBlock: {
+    width: "100%",
+    maxWidth: 280,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: RunColors.border,
+    backgroundColor: RunColors.surface,
+    gap: 4,
+  },
+  deferredPausedTitle: {
+    color: RunColors.secondary,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textAlign: "center",
+  },
+  deferredPausedItem: {
+    color: RunColors.ink,
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
   },
   resumeHint: {
     color: RunColors.muted,

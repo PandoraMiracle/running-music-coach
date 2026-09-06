@@ -156,7 +156,7 @@ export default function PlanScreen() {
         <View style={styles.footer}>
           <PrimaryButton
             label="Continue"
-            onPress={() => router.push("/")}
+            onPress={() => router.push(ROUTES.home)}
             style={styles.cta}
           />
         </View>
