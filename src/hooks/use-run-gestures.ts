@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { useEffect, useMemo } from "react";
 import { Platform, Vibration } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
@@ -11,37 +12,68 @@ export type RunGestureHandlers = {
   onLongPress: () => void;
 };
 
-/** Built-in Vibration — no new haptic dependency. */
+/**
+ * Fire the vibration motor immediately. Do not await expo-haptics first —
+ * some Android Expo Go builds hang or no-op that promise, which previously
+ * swallowed the fallback. Web has no haptic hardware.
+ */
 export function pulseHaptic(
   pattern: "light" | "confirm" | "strong" | "alert" = "light",
 ) {
+  if (Platform.OS === "web") return;
+
   try {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "android") {
+      if (pattern === "alert") {
+        Vibration.vibrate([0, 140, 80, 140, 80, 180]);
+      } else if (pattern === "strong") {
+        Vibration.vibrate([0, 110, 50, 110]);
+      } else if (pattern === "confirm") {
+        Vibration.vibrate([0, 70, 40, 70]);
+      } else {
+        Vibration.vibrate(90);
+      }
+    } else {
+      Vibration.vibrate();
+    }
+  } catch {
+    // Continue to expo-haptics below.
+  }
+
+  void playNativeHaptics(pattern);
+}
+
+async function playNativeHaptics(
+  pattern: "light" | "confirm" | "strong" | "alert",
+) {
+  try {
+    if (Platform.OS === "android") {
+      const type =
+        pattern === "alert"
+          ? Haptics.AndroidHaptics.Reject
+          : pattern === "strong"
+            ? Haptics.AndroidHaptics.Long_Press
+            : Haptics.AndroidHaptics.Confirm;
+      await Haptics.performAndroidHapticsAsync(type);
+      return;
+    }
+
     if (pattern === "alert") {
-      // Immediate (safety/navigation) delivery — insistent triple pulse so
-      // it reads as urgent even with earbuds in, distinct from pause/resume.
-      Vibration.vibrate(
-        Platform.OS === "android" ? [0, 70, 60, 70, 60, 70] : 55,
-      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       return;
     }
     if (pattern === "strong") {
-      // Pause Run — stronger confirmation so eyes-free pause is recognizable.
-      Vibration.vibrate(
-        Platform.OS === "android" ? [0, 55, 50, 55] : 55,
-      );
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       return;
     }
     if (pattern === "confirm") {
-      // Resume Run — clear confirmation, lighter than pause.
-      Vibration.vibrate(
-        Platform.OS === "android" ? [0, 35, 30, 35] : 35,
-      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return;
     }
-    Vibration.vibrate(Platform.OS === "android" ? 18 : 10);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   } catch {
-    // Graceful no-op when vibration is unavailable.
+    // Motor already fired above when possible.
   }
 }
 

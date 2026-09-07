@@ -242,7 +242,7 @@ export default function AudioModeScreen() {
         <View style={styles.footer}>
           <PrimaryButton
             label="Continue"
-            onPress={() => router.push(ROUTES.ready)}
+            onPress={() => router.push(ROUTES.home)}
             style={styles.cta}
           />
         </View>

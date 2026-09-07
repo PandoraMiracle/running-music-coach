@@ -1,3 +1,4 @@
+import * as Speech from "expo-speech";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -76,26 +77,41 @@ function paceParts(secPerKm: number) {
   };
 }
 
+function speakCurrentPace(secPerKm: number) {
+  const minutes = Math.floor(secPerKm / 60);
+  const seconds = Math.round(secPerKm % 60);
+  const spoken =
+    seconds === 0
+      ? `Current pace ${minutes} minutes per kilometer`
+      : `Current pace ${minutes} minutes ${seconds} seconds per kilometer`;
+  try {
+    Speech.stop();
+    Speech.speak(spoken, { language: "en-US", rate: 0.95, pitch: 1 });
+  } catch {
+    // Speech unavailable — visual emphasis still remains.
+  }
+}
+
 /** Shared S07 pace block — identical in NORMAL and PAUSED. */
 function PaceDisplay({
   value,
   unit,
-  feedbackText,
+  emphasized,
 }: {
   value: string;
   unit: string;
-  feedbackText?: string | null;
+  emphasized?: boolean;
 }) {
   return (
     <View style={styles.paceBlock}>
       <Text style={styles.paceLabel}>Current pace</Text>
-      <Text style={styles.paceValue}>{value}</Text>
+      <Text
+        style={[styles.paceValue, emphasized && styles.paceValueEmphasized]}
+      >
+        {value}
+      </Text>
       <Text style={styles.paceUnit}>{unit}</Text>
-      <View style={styles.paceFeedbackSlot}>
-        {feedbackText ? (
-          <Text style={styles.paceFeedbackTarget}>{feedbackText}</Text>
-        ) : null}
-      </View>
+      <View style={styles.paceFeedbackSlot} />
     </View>
   );
 }
@@ -160,7 +176,7 @@ function NowPlayingRow({
 function MetricsArea({
   paceValue,
   paceUnit,
-  feedbackText,
+  paceEmphasized,
   target,
   distance,
   time,
@@ -170,7 +186,7 @@ function MetricsArea({
 }: {
   paceValue: string;
   paceUnit: string;
-  feedbackText?: string | null;
+  paceEmphasized?: boolean;
   target: string;
   distance: string;
   time: string;
@@ -183,7 +199,7 @@ function MetricsArea({
       <PaceDisplay
         value={paceValue}
         unit={paceUnit}
-        feedbackText={feedbackText}
+        emphasized={paceEmphasized}
       />
       <StatsRow target={target} distance={distance} time={time} />
       <NowPlayingRow
@@ -223,6 +239,10 @@ export default function RunScreen() {
   );
   const prevPaceSyncStateRef = useRef(state.paceSyncState);
   const prevImmediateAlertKindRef = useRef(state.immediateAlertKind);
+
+  useEffect(() => {
+    pulseHaptic("confirm");
+  }, []);
 
   const tracks = playlist.tracks;
   const track = tracks[Math.min(trackIndex, tracks.length - 1)] ?? tracks[0];
@@ -326,6 +346,7 @@ export default function RunScreen() {
   const onSwipeUp = useCallback(() => {
     if (runPaused) return;
     pulseHaptic("light");
+    speakCurrentPace(MOCK_CURRENT_PACE_SEC);
     setPaceFeedback(true);
     if (paceTimerRef.current) clearTimeout(paceTimerRef.current);
     paceTimerRef.current = setTimeout(() => {
@@ -365,10 +386,7 @@ export default function RunScreen() {
     [audioMode.policies, triggerEvent],
   );
 
-  const paceFeedbackText =
-    !runPaused && paceFeedback
-      ? `Target ${targetPace.value} ${targetPace.unit}`
-      : null;
+  const paceEmphasized = !runPaused && paceFeedback;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -448,7 +466,7 @@ export default function RunScreen() {
                 <MetricsArea
                   paceValue={currentPace.value}
                   paceUnit={currentPace.unit}
-                  feedbackText={paceFeedbackText}
+                  paceEmphasized={paceEmphasized}
                   target={targetPace.value}
                   distance={`${MOCK_DISTANCE_KM.toFixed(1)} km`}
                   time={formatDuration(MOCK_ELAPSED_SEC)}
@@ -647,6 +665,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: PACE_VALUE_SIZE + 2,
     textAlign: "center",
+  },
+  paceValueEmphasized: {
+    color: RunColors.ink,
   },
   paceUnit: {
     width: "100%",

@@ -7,6 +7,7 @@ import { formatPace } from "@/constants/format";
 import { ROUTES } from "@/constants/routes";
 import { Spacing } from "@/constants/theme";
 import { RUN_TYPES } from "@/data/runTypes";
+import { pulseHaptic } from "@/hooks/use-run-gestures";
 import { useSession } from "@/store/session-store";
 
 const ReadyColors = {
@@ -140,7 +141,10 @@ export default function ReadyScreen() {
         <View style={styles.footer}>
           <PrimaryButton
             label="Start Run"
-            onPress={() => router.push(ROUTES.run)}
+            onPress={() => {
+              pulseHaptic("strong");
+              router.push(ROUTES.run);
+            }}
             style={styles.cta}
           />
         </View>
