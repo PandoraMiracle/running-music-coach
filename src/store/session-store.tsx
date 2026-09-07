@@ -73,7 +73,9 @@ export type SessionState = {
 type SessionAction =
   | { type: "SET_RUN_TYPE"; runTypeId: RunTypeId }
   | { type: "ADJUST_DISTANCE"; deltaSteps: number }
+  | { type: "SET_DISTANCE_KM"; distanceKm: number }
   | { type: "ADJUST_PACE"; deltaSteps: number }
+  | { type: "SET_TARGET_PACE_SEC"; targetPaceSecPerKm: number }
   | { type: "SET_PLAYLIST"; playlistId: string }
   | { type: "SET_AUDIO_MODE"; audioModeId: string }
   | { type: "SET_CUSTOM_BASE_PRESET"; basePresetType: DefaultAudioModeType }
@@ -154,6 +156,15 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
         distanceKm: clamp(next, DISTANCE_MIN_KM, DISTANCE_MAX_KM),
       };
     }
+    case "SET_DISTANCE_KM":
+      return {
+        ...state,
+        distanceKm: clamp(
+          roundDistance(action.distanceKm),
+          DISTANCE_MIN_KM,
+          DISTANCE_MAX_KM,
+        ),
+      };
     case "ADJUST_PACE": {
       const next = state.targetPaceSecPerKm + action.deltaSteps * PACE_STEP_SEC;
       return {
@@ -161,6 +172,15 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
         targetPaceSecPerKm: clamp(next, PACE_MIN_SEC, PACE_MAX_SEC),
       };
     }
+    case "SET_TARGET_PACE_SEC":
+      return {
+        ...state,
+        targetPaceSecPerKm: clamp(
+          Math.round(action.targetPaceSecPerKm),
+          PACE_MIN_SEC,
+          PACE_MAX_SEC,
+        ),
+      };
     case "SET_PLAYLIST":
       return { ...state, playlistId: action.playlistId };
     case "SET_AUDIO_MODE":
@@ -237,7 +257,9 @@ type SessionContextValue = {
   state: SessionState;
   setRunType: (runTypeId: RunTypeId) => void;
   adjustDistance: (deltaSteps: number) => void;
+  setDistanceKm: (distanceKm: number) => void;
   adjustPace: (deltaSteps: number) => void;
+  setTargetPaceSecPerKm: (targetPaceSecPerKm: number) => void;
   setPlaylist: (playlistId: string) => void;
   setAudioMode: (audioModeId: string) => void;
   setCustomBasePreset: (basePresetType: DefaultAudioModeType) => void;
@@ -269,7 +291,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setRunType: (runTypeId) => dispatch({ type: "SET_RUN_TYPE", runTypeId }),
       adjustDistance: (deltaSteps) =>
         dispatch({ type: "ADJUST_DISTANCE", deltaSteps }),
+      setDistanceKm: (distanceKm) =>
+        dispatch({ type: "SET_DISTANCE_KM", distanceKm }),
       adjustPace: (deltaSteps) => dispatch({ type: "ADJUST_PACE", deltaSteps }),
+      setTargetPaceSecPerKm: (targetPaceSecPerKm) =>
+        dispatch({ type: "SET_TARGET_PACE_SEC", targetPaceSecPerKm }),
       setPlaylist: (playlistId) => dispatch({ type: "SET_PLAYLIST", playlistId }),
       setAudioMode: (audioModeId) =>
         dispatch({ type: "SET_AUDIO_MODE", audioModeId }),
